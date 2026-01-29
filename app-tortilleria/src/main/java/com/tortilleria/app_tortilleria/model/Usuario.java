@@ -22,7 +22,7 @@ public class Usuario {
     private String direccion;
 
     @Column(nullable = false)
-    private String numero;
+    private String telefono;
 
     @Enumerated(EnumType.STRING)
     private UserRole role;
@@ -31,13 +31,13 @@ public class Usuario {
     }
 
     public Usuario(Long id, String nombre, String email, String password,
-                   String direccion, String numero, UserRole role) {
+                   String direccion, String telefono, UserRole role) {
         this.id = id;
         this.nombre = nombre;
         this.email = email;
         this.password = password;
         this.direccion = direccion;
-        this.numero = numero;
+        this.telefono = telefono;
         this.role = role;
     }
 
@@ -81,12 +81,12 @@ public class Usuario {
         this.direccion = direccion;
     }
 
-    public String getNumero() {
-        return numero;
+    public String getTelefono() {
+        return telefono;
     }
 
-    public void setNumero(String numero) {
-        this.numero = numero;
+    public void setTelefono(String telefono) {
+        this.telefono = telefono;
     }
 
     public UserRole getRole() {
