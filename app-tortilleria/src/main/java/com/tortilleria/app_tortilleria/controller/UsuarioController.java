@@ -9,7 +9,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/usuarios")
@@ -46,10 +45,8 @@ public class UsuarioController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> eliminarUsuario(@PathVariable Long id) {
 
-        if (usuarioService.eliminarUsuario(id))
-            return ResponseEntity.noContent().build();
-        else
-            return ResponseEntity.notFound().build();
+        usuarioService.eliminarUsuario(id);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}")

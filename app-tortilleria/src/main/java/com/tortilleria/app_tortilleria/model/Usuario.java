@@ -27,8 +27,7 @@ public class Usuario {
     @Enumerated(EnumType.STRING)
     private UserRole role;
 
-    public Usuario() {
-    }
+    protected Usuario() {}
 
     public Usuario(Long id, String nombre, String email, String password,
                    String direccion, String telefono, UserRole role) {

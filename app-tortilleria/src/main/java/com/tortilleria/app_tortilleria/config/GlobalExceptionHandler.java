@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorDTO> manejarArgumentoInvalido(IllegalArgumentException ex) {
         ErrorDTO error = new ErrorDTO(
                 HttpStatus.BAD_REQUEST.value(),
-                "Solicitud Invalidad",
+                "Solicitud Invalida",
                 ex.getMessage()
         );
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
@@ -34,8 +34,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorDTO> manejarErrorGeneral(Exception ex) {
         ErrorDTO error = new ErrorDTO(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "Error Interno Del Servidor",
-                "Ocurrio un error inesperado. Contacte a soporte."
+                "Error Interno del Servidor",
+                "Ocurrió un error inesperado. Contacte a soporte."
         );
         ex.printStackTrace();
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);

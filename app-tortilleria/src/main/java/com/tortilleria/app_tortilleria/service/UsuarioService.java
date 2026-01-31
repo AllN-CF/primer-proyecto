@@ -40,12 +40,11 @@ public class UsuarioService {
         else throw new RecursoNoEncontradoException("El usuario con el ID " + id + " no existe.");
     }
 
-    public boolean eliminarUsuario(Long id) {
-        if (usuarioRepository.existsById(id)) {
-            usuarioRepository.deleteById(id);
-            return true;
-        }
-        return false;
+    public void eliminarUsuario(Long id) {
+        if (!usuarioRepository.existsById(id))
+            throw new RecursoNoEncontradoException("El usuario con el ID " + id + " no existe.");
+
+        usuarioRepository.deleteById(id);
     }
 
     public Usuario actualizarUsuario(Long id, Usuario usuario) {
