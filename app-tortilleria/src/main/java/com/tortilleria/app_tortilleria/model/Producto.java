@@ -16,8 +16,8 @@ public class Producto {
     @Column(nullable = false)
     private double precio;
 
-    @Column(nullable = false)
-    private boolean hayDisponible;
+    @Column
+    private boolean disponibilidad = true;
 
     protected Producto() {}
 
@@ -25,7 +25,6 @@ public class Producto {
         this.id = id;
         this.nombre = nombre;
         this.precio = precio;
-        this.hayDisponible = true;
     }
 
     public Long getId() {
@@ -52,11 +51,11 @@ public class Producto {
         this.precio = precio;
     }
 
-    public boolean isHayDisponible() {
-        return hayDisponible;
+    public boolean getDisponibilidad() {
+        return disponibilidad;
     }
 
-    public void setHayDisponible(boolean hayDisponible) {
-        this.hayDisponible = hayDisponible;
+    public void setDisponibilidad(boolean disponibilidad) {
+        this.disponibilidad = disponibilidad;
     }
 }

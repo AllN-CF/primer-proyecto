@@ -3,6 +3,7 @@ package com.tortilleria.app_tortilleria.config;
 import com.tortilleria.app_tortilleria.service.CustomUserDetailsService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -29,8 +30,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/usuarios/registro").permitAll()  // Permitir registro
                         .requestMatchers("/h2-console/**").permitAll()  // Permitir consola de BD
-                        // .requestMatchers("/api/usuarios/registros").permitAll()
-                        // .requestMatchers("/api/usuarios/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/productos/lista").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/productos/**").permitAll()
                         .anyRequest().authenticated()  // Lo demas requiere login
                 )
 

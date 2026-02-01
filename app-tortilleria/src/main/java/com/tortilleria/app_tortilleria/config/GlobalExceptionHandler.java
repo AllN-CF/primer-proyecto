@@ -4,6 +4,7 @@ import com.tortilleria.app_tortilleria.exception.RecursoNoEncontradoException;
 import com.tortilleria.app_tortilleria.model.ErrorDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -39,5 +40,15 @@ public class GlobalExceptionHandler {
         );
         ex.printStackTrace();
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorDTO> manejarAccesoDenegado(AccessDeniedException ex) {
+        ErrorDTO error = new ErrorDTO(
+                HttpStatus.FORBIDDEN.value(),
+                "Acceso Denegado",
+                "No tienes permisos suficientes para realizar esta acción."
+        );
+        return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
     }
 }

@@ -1,5 +1,7 @@
 package com.tortilleria.app_tortilleria.repository;
 
+import com.tortilleria.app_tortilleria.model.Producto;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
