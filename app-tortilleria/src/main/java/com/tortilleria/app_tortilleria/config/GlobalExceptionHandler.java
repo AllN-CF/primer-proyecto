@@ -1,7 +1,7 @@
 package com.tortilleria.app_tortilleria.config;
 
 import com.tortilleria.app_tortilleria.exception.RecursoNoEncontradoException;
-import com.tortilleria.app_tortilleria.model.ErrorDTO;
+import com.tortilleria.app_tortilleria.dto.ErrorDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;

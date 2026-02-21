@@ -40,6 +40,12 @@ public class UsuarioService {
         else throw new RecursoNoEncontradoException("El usuario con el ID " + id + " no existe.");
     }
 
+    public Usuario usuarioPorEmail(String email) {
+
+        return usuarioRepository.findByEmail(email)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No hay un usuario registado con el email: " + email));
+    }
+
     public void eliminarUsuario(Long id) {
         if (!usuarioRepository.existsById(id))
             throw new RecursoNoEncontradoException("El usuario con el ID " + id + " no existe.");

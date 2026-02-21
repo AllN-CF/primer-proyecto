@@ -1,4 +1,4 @@
-package com.tortilleria.app_tortilleria.model;
+package com.tortilleria.app_tortilleria.dto;
 
 import java.time.LocalDateTime;
 
