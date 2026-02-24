@@ -1,8 +1,6 @@
 package com.tortilleria.app_tortilleria.controller;
 
 import com.tortilleria.app_tortilleria.dto.PedidoRequestDTO;
-import com.tortilleria.app_tortilleria.model.EstadoPedido;
-import com.tortilleria.app_tortilleria.model.Pedido;
 import com.tortilleria.app_tortilleria.dto.PedidoDTO;
 import com.tortilleria.app_tortilleria.model.Usuario;
 import com.tortilleria.app_tortilleria.service.PedidoService;
@@ -12,6 +10,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/pedidos")
@@ -31,6 +31,21 @@ public class PedidoController {
         Usuario usuarioLogueado = usuarioService.usuarioPorEmail(emailLogueado);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(pedidoService.crearPedido(usuarioLogueado.getId(), pedido));
+    }
+
+    @GetMapping("/todos")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<PedidoDTO>> verTodosLosPedidos() {
+        return ResponseEntity.status(HttpStatus.OK).body(pedidoService.todosLosPedidos());
+    }
+
+    @GetMapping("/historial")
+    public ResponseEntity<List<PedidoDTO>> pedidosPorCliente(Authentication authentication) {
+
+        String emailLogueado = authentication.getName();
+        Usuario usuarioLogueado = usuarioService.usuarioPorEmail(emailLogueado);
+
+        return ResponseEntity.status(HttpStatus.OK).body(pedidoService.historialPedidos(usuarioLogueado));
     }
 
     @GetMapping("/{idPedido}")
@@ -78,13 +93,25 @@ public class PedidoController {
                 .body(pedidoService.actualizarPedido(idPedido, actualizacion));
     }
 
-    @PatchMapping("/{idPedido}")
+    @PatchMapping("/{idPedido}/estado")
     @PreAuthorize("hasAnyRole('ADMIN', 'GESTOR', 'REPARTIDOR')")
     public ResponseEntity<PedidoDTO> cambiarEstadoPedido(
             @PathVariable Long idPedido,
-            @RequestBody EstadoPedido estado
+            @RequestBody EstadoRequest request
     ) {
         return ResponseEntity.status(HttpStatus.OK)
-                .body(pedidoService.actualizarEstadoPedido(idPedido, estado));
+                .body(pedidoService.actualizarEstadoPedido(idPedido, request.getEstado()));
+    }
+
+    public static class EstadoRequest {
+        private String estado;
+
+        public String getEstado() {
+            return estado;
+        }
+
+        public void setEstado(String estado) {
+            this.estado = estado;
+        }
     }
 }

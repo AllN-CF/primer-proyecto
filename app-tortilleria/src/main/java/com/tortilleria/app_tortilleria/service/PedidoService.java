@@ -8,7 +8,6 @@ import com.tortilleria.app_tortilleria.repository.PedidoDetalleRepository;
 import com.tortilleria.app_tortilleria.repository.PedidoRepository;
 import com.tortilleria.app_tortilleria.repository.ProductoRepository;
 import com.tortilleria.app_tortilleria.repository.UsuarioRepository;
-import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,21 +66,20 @@ public class PedidoService {
         return transferirPedido(nuevoPedido);
     }
 
-    public boolean esDelUsuario(Long idUsuario, Long idPedido) {
-        Pedido pedido = pedidoRepository.findById(idPedido)
-                .orElseThrow(() -> new RecursoNoEncontradoException("No existe un pedido con ID: " + idPedido));
+    @Transactional(readOnly = true)
+    public List<PedidoDTO> todosLosPedidos() {
+        List<Pedido> listaDePedidos = pedidoRepository.findAll();
 
-        return (long) idUsuario == pedido.getUsuario().getId();
+        List<PedidoDTO> listaPedidosDTO = new ArrayList<>();
+        for (Pedido pedido : listaDePedidos) {
+
+            listaPedidosDTO.add(transferirPedido(pedido));
+        }
+
+        return listaPedidosDTO;
     }
 
-    public String estadoPedido(Long idPedido) {
-        Pedido pedido = pedidoRepository.findById(idPedido)
-                .orElseThrow(() -> new RecursoNoEncontradoException("No existe un pedido con ID: " + idPedido));
-
-        return pedido.getEstado().name();
-    }
-
-    @Transactional
+    @Transactional(readOnly = true)
     public PedidoDTO obtenerPedido(Long idPedido) {
         Pedido pedido = pedidoRepository.findById(idPedido)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe un pedido con ID: " + idPedido));
@@ -131,16 +129,30 @@ public class PedidoService {
         }
         pedidoActual.setTotal(nuevoTotal);
         pedidoActual.setDetalles(detallesActualizados);
+        pedidoRepository.save(pedidoActual);
 
         return transferirPedido(pedidoActual);
     }
 
-    public PedidoDTO actualizarEstadoPedido(Long idPedido, EstadoPedido estado) {
+    @Transactional(readOnly = true)
+    public List<PedidoDTO> historialPedidos(Usuario usuario) {
+        List<Pedido> listaDePedidos = pedidoRepository.findAllByUsuario(usuario);
+
+        List<PedidoDTO> listaPedidosDTO = new ArrayList<>();
+        for (Pedido pedido : listaDePedidos)
+            listaPedidosDTO.add(transferirPedido(pedido));
+
+        return listaPedidosDTO;
+    }
+
+    @Transactional
+    public PedidoDTO actualizarEstadoPedido(Long idPedido, String estado) {
         Pedido pedidoExistente = pedidoRepository.findById(idPedido)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe un pedido con ID: " + idPedido));
 
+        String estadoLimpio = estado.trim().toUpperCase();
         try {
-            pedidoExistente.setEstado(estado);
+            pedidoExistente.setEstado(EstadoPedido.valueOf(estadoLimpio));
             pedidoRepository.save(pedidoExistente);
 
             return transferirPedido(pedidoExistente);
@@ -148,6 +160,13 @@ public class PedidoService {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Estado invalido. Valores permitidos: PENDIENTE, EN_CAMINO, ENTREGADO, CANCELADO");
         }
+    }
+
+    public boolean esDelUsuario(Long idUsuario, Long idPedido) {
+        Pedido pedido = pedidoRepository.findById(idPedido)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe un pedido con ID: " + idPedido));
+
+        return idUsuario.equals(pedido.getUsuario().getId());
     }
 
     private PedidoDTO transferirPedido(Pedido pedido) {
@@ -161,7 +180,6 @@ public class PedidoService {
                     item.getProducto().getPrecio()
             ));
         }
-
         return new PedidoDTO(
                 pedido.getId(),
                 pedido.getFecha(),
