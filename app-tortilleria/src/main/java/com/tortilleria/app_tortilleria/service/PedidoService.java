@@ -8,6 +8,10 @@ import com.tortilleria.app_tortilleria.repository.PedidoDetalleRepository;
 import com.tortilleria.app_tortilleria.repository.PedidoRepository;
 import com.tortilleria.app_tortilleria.repository.ProductoRepository;
 import com.tortilleria.app_tortilleria.repository.UsuarioRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,16 +71,18 @@ public class PedidoService {
     }
 
     @Transactional(readOnly = true)
-    public List<PedidoDTO> todosLosPedidos() {
-        List<Pedido> listaDePedidos = pedidoRepository.findAll();
+    public Page<PedidoDTO> todosLosPedidos(int page, int size, String estado) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("fecha").descending());
 
-        List<PedidoDTO> listaPedidosDTO = new ArrayList<>();
-        for (Pedido pedido : listaDePedidos) {
+        Page<Pedido> pedidosPage;
+        if (estado != null && !estado.trim().isEmpty()) {
 
-            listaPedidosDTO.add(transferirPedido(pedido));
-        }
+            EstadoPedido estadoEnum = EstadoPedido.valueOf(estado.toUpperCase());
+            pedidosPage = pedidoRepository.findAllByEstado(estadoEnum, pageable);
+        } else
+            pedidosPage = pedidoRepository.findAll(pageable);
 
-        return listaPedidosDTO;
+        return pedidosPage.map(this::transferirPedido);
     }
 
     @Transactional(readOnly = true)
@@ -111,7 +117,7 @@ public class PedidoService {
             for (PedidoDetalle productoPedido : pedidoActual.getDetalles()) {
                 int cantidadActual = productoPedido.getCantidad();
 
-                if ((long) itemNuevo.getIdProducto() == productoPedido.getProducto().getId()) {
+                if (itemNuevo.getIdProducto().equals(productoPedido.getProducto().getId())) {
                     productoPedido.setCantidad(cantidadActual += itemNuevo.getCantidad());
                     nuevoTotal += itemNuevo.getCantidad() * productoPedido.getProducto().getPrecio();
                     continue listaRequest;
@@ -135,14 +141,12 @@ public class PedidoService {
     }
 
     @Transactional(readOnly = true)
-    public List<PedidoDTO> historialPedidos(Usuario usuario) {
-        List<Pedido> listaDePedidos = pedidoRepository.findAllByUsuario(usuario);
+    public Page<PedidoDTO> historialPedidos(Usuario usuario, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("fecha").descending());
 
-        List<PedidoDTO> listaPedidosDTO = new ArrayList<>();
-        for (Pedido pedido : listaDePedidos)
-            listaPedidosDTO.add(transferirPedido(pedido));
+        Page<Pedido> pedidosPege = pedidoRepository.findAllByUsuario(usuario, pageable);
 
-        return listaPedidosDTO;
+        return pedidosPege.map(this::transferirPedido);
     }
 
     @Transactional
