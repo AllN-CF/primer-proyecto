@@ -1,0 +1,499 @@
+package com.tortilleria.app_tortilleria.service;
+
+import com.tortilleria.app_tortilleria.controller.UsuarioController;
+import com.tortilleria.app_tortilleria.security.JwtService;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+@Service
+public class AuthenticationService {
+    private final CustomUserDetailsService userDetailsService;
+    private final JwtService jwtService;
+    private final AuthenticationManager authenticationManager;
+
+    public AuthenticationService(CustomUserDetailsService userDetailsService, JwtService jwtService, AuthenticationManager authenticationManager) {
+        this.userDetailsService = userDetailsService;
+        this.jwtService = jwtService;
+        this.authenticationManager = authenticationManager;
+    }
+
+    public UsuarioController.AuthResponse autenticarUsuario(UsuarioController.AuthRequest request) {
+        authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
+                request.getEmail(),
+                request.getPassword()
+        ));
+
+        UserDetails usuario = userDetailsService.loadUserByUsername(request.getEmail());
+
+        return new UsuarioController.AuthResponse(jwtService.generarToken(usuario));
+    }
+}
+package com.tortilleria.app_tortilleria.service;
+
+import com.tortilleria.app_tortilleria.model.Usuario;
+import com.tortilleria.app_tortilleria.repository.UsuarioRepository;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+    private final UsuarioRepository usuarioRepository;
+
+    public CustomUserDetailsService(UsuarioRepository usuarioRepository) {
+
+        this.usuarioRepository = usuarioRepository;
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+
+        Usuario usuario = usuarioRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado con email: " + email));
+
+        return User.builder()
+                .username(usuario.getEmail())
+                .password(usuario.getPassword())
+                .roles(usuario.getRole().name().replace("ROLE_", ""))
+                .build();
+    }
+}
+package com.tortilleria.app_tortilleria.service;
+
+import com.tortilleria.app_tortilleria.security.JwtService;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtService jwtService;
+    private final CustomUserDetailsService userDetailsService;
+
+    public JwtAuthenticationFilter(JwtService jwtService, CustomUserDetailsService userDetailsService) {
+        this.jwtService = jwtService;
+        this.userDetailsService = userDetailsService;
+    }
+
+    @Override
+    protected void doFilterInternal(
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain
+            ) throws ServletException, IOException {
+
+        final String authHeader = request.getHeader("Authorization");
+        final String jwt;
+        final String userMail;
+
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        jwt = authHeader.substring(7);
+        userMail = jwtService.extraerUsername(jwt);
+
+        if (userMail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            UserDetails userDetails = this.userDetailsService.loadUserByUsername(userMail);
+
+            if (jwtService.esTokenValido(jwt, userDetails)) {
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                        userDetails,
+                        null,
+                        userDetails.getAuthorities()
+                );
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+            }
+        }
+        filterChain.doFilter(request, response);
+    }
+}
+package com.tortilleria.app_tortilleria.service;
+
+import com.tortilleria.app_tortilleria.dto.PedidoRequestDTO;
+import com.tortilleria.app_tortilleria.exception.RecursoNoEncontradoException;
+import com.tortilleria.app_tortilleria.model.*;
+import com.tortilleria.app_tortilleria.dto.PedidoDTO;
+import com.tortilleria.app_tortilleria.repository.PedidoDetalleRepository;
+import com.tortilleria.app_tortilleria.repository.PedidoRepository;
+import com.tortilleria.app_tortilleria.repository.ProductoRepository;
+import com.tortilleria.app_tortilleria.repository.UsuarioRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+public class PedidoService {
+
+    private final PedidoRepository pedidoRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final ProductoRepository productoRepository;
+    private final PedidoDetalleRepository pedidoDetalleRepository;
+
+    public PedidoService(PedidoRepository pedidoRepository,
+                         UsuarioRepository usuarioRepository,
+                         ProductoRepository productoRepository,
+                         PedidoDetalleRepository pedidoDetalleRepository)
+    {
+        this.pedidoRepository = pedidoRepository;
+        this.usuarioRepository = usuarioRepository;
+        this.productoRepository = productoRepository;
+        this.pedidoDetalleRepository = pedidoDetalleRepository;
+    }
+
+    @Transactional
+    public PedidoDTO crearPedido(Long id, PedidoRequestDTO pedido) {
+        Usuario usuarioDelPedido = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario con ID " + " no existe."));
+
+        Pedido nuevoPedido = new Pedido(usuarioDelPedido);
+        pedidoRepository.save(nuevoPedido);
+
+        List<PedidoDetalle> listaPedidoDetalle = new ArrayList<>();
+        double nuevoTotalPedido = 0.0;
+        for (PedidoRequestDTO.ProductoPedidoRequest item : pedido.getProductos()) {
+            Producto producto = productoRepository.findById(item.getIdProducto())
+                    .orElseThrow(() -> new RecursoNoEncontradoException("Este producto no existe."));
+            if(!producto.getDisponibilidad())
+                throw new RecursoNoEncontradoException("Este producto se encuentra agotado, lamentamos los inconvenientes.");
+
+            listaPedidoDetalle.add(new PedidoDetalle(
+                    item.getCantidad(),
+                    producto.getPrecio(),
+                    producto,
+                    nuevoPedido
+            ));
+
+            nuevoTotalPedido += item.getCantidad() * producto.getPrecio();
+        }
+        nuevoPedido.setDetalles(listaPedidoDetalle);
+
+        nuevoPedido.setTotal(nuevoTotalPedido);
+        pedidoRepository.save(nuevoPedido);
+
+        return transferirPedido(nuevoPedido);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PedidoDTO> todosLosPedidos(int page, int size, String estado) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("fecha").descending());
+
+        Page<Pedido> pedidosPage;
+        if (estado != null && !estado.trim().isEmpty()) {
+
+            EstadoPedido estadoEnum = EstadoPedido.valueOf(estado.toUpperCase());
+            pedidosPage = pedidoRepository.findAllByEstado(estadoEnum, pageable);
+        } else
+            pedidosPage = pedidoRepository.findAll(pageable);
+
+        return pedidosPage.map(this::transferirPedido);
+    }
+
+    @Transactional(readOnly = true)
+    public PedidoDTO obtenerPedido(Long idPedido) {
+        Pedido pedido = pedidoRepository.findById(idPedido)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe un pedido con ID: " + idPedido));
+
+        return transferirPedido(pedido);
+    }
+
+    public void eliminarPedido(Long id) {
+        if (!pedidoRepository.existsById(id))
+            throw new RecursoNoEncontradoException("El pedido con ID: " + id + "no existe.");
+
+        pedidoRepository.deleteById(id);
+    }
+
+    @Transactional
+    public PedidoDTO actualizarPedido(Long id, PedidoRequestDTO actualizacion) {
+
+        Pedido pedidoActual = pedidoRepository.findById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe un pedido con ID: " + id));
+
+        if (pedidoActual.getEstado().name().equals("EN_CAMINO"))
+            throw new IllegalArgumentException("El pedido ya se encuentra en camino, por lo tanto, ya no puede modificarse.");
+
+        List<PedidoDetalle> detallesActualizados = pedidoActual.getDetalles();
+        double nuevoTotal = pedidoActual.getTotal();
+
+        listaRequest:
+        for (PedidoRequestDTO.ProductoPedidoRequest itemNuevo : actualizacion.getProductos()) {
+            for (PedidoDetalle productoPedido : pedidoActual.getDetalles()) {
+                int cantidadActual = productoPedido.getCantidad();
+
+                if (itemNuevo.getIdProducto().equals(productoPedido.getProducto().getId())) {
+                    productoPedido.setCantidad(cantidadActual += itemNuevo.getCantidad());
+                    nuevoTotal += itemNuevo.getCantidad() * productoPedido.getProducto().getPrecio();
+                    continue listaRequest;
+                }
+            }
+            Producto producto = productoRepository.findById(itemNuevo.getIdProducto())
+                    .orElseThrow(() -> new RecursoNoEncontradoException("Este producto no existe."));
+            detallesActualizados.add(new PedidoDetalle(
+                    itemNuevo.getCantidad(),
+                    producto.getPrecio(),
+                    producto,
+                    pedidoActual
+            ));
+            nuevoTotal += itemNuevo.getCantidad() * producto.getPrecio();
+        }
+        pedidoActual.setTotal(nuevoTotal);
+        pedidoActual.setDetalles(detallesActualizados);
+        pedidoRepository.save(pedidoActual);
+
+        return transferirPedido(pedidoActual);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PedidoDTO> historialPedidos(Usuario usuario, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("fecha").descending());
+
+        Page<Pedido> pedidosPege = pedidoRepository.findAllByUsuario(usuario, pageable);
+
+        return pedidosPege.map(this::transferirPedido);
+    }
+
+    @Transactional
+    public PedidoDTO actualizarEstadoPedido(Long idPedido, String estado) {
+        Pedido pedidoExistente = pedidoRepository.findById(idPedido)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe un pedido con ID: " + idPedido));
+
+        String estadoLimpio = estado.trim().toUpperCase();
+        try {
+            pedidoExistente.setEstado(EstadoPedido.valueOf(estadoLimpio));
+            pedidoRepository.save(pedidoExistente);
+
+            return transferirPedido(pedidoExistente);
+
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Estado invalido. Valores permitidos: PENDIENTE, EN_CAMINO, ENTREGADO, CANCELADO");
+        }
+    }
+
+    public boolean esDelUsuario(Long idUsuario, Long idPedido) {
+        Pedido pedido = pedidoRepository.findById(idPedido)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe un pedido con ID: " + idPedido));
+
+        return idUsuario.equals(pedido.getUsuario().getId());
+    }
+
+    private PedidoDTO transferirPedido(Pedido pedido) {
+
+        List<PedidoDTO.DetallesPedido> listaDetalles = new ArrayList<>();
+        for (PedidoDetalle item : pedido.getDetalles()) {
+
+            listaDetalles.add(new PedidoDTO.DetallesPedido(
+                    item.getProducto().getNombre(),
+                    item.getCantidad(),
+                    item.getProducto().getPrecio()
+            ));
+        }
+        return new PedidoDTO(
+                pedido.getId(),
+                pedido.getFecha(),
+                pedido.getUsuario().getNombre(),
+                pedido.getUsuario().getDireccion(),
+                pedido.getUsuario().getTelefono(),
+                listaDetalles,
+                pedido.getTotal(),
+                pedido.getEstado()
+        );
+    }
+}package com.tortilleria.app_tortilleria.service;
+
+import com.tortilleria.app_tortilleria.exception.RecursoNoEncontradoException;
+import com.tortilleria.app_tortilleria.model.Producto;
+import com.tortilleria.app_tortilleria.repository.ProductoRepository;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class ProductoService {
+
+    private final ProductoRepository productoRepository;
+
+    public ProductoService(ProductoRepository productoRepository) {
+        this.productoRepository = productoRepository;
+    }
+
+    public Producto agregarProducto(Producto producto) {
+        if(producto.getId() != null && productoRepository.existsById(producto.getId()))
+            throw new IllegalArgumentException("El producto ya cuenta con un ID.");
+
+        if(producto.getNombre() == null || producto.getPrecio() == 0)
+            throw new IllegalArgumentException("Todos los campos deben ser llenados correctamente.");
+
+        return productoRepository.save(producto);
+    }
+
+    public List<Producto> listarProductos() {
+        return productoRepository.findAll();
+    }
+
+    public Producto obtenerProducto(Long id) {
+        Optional<Producto> productoBuscado = productoRepository.findById(id);
+
+        if(productoBuscado.isPresent())  return productoBuscado.get();
+        else throw new RecursoNoEncontradoException("El producto con ID " + id + " no existe.");
+    }
+
+    public void quitarProducto(Long id) {
+        if(!productoRepository.existsById(id))
+            throw new RecursoNoEncontradoException("El producto con ID " + id + " no existe.");
+
+        productoRepository.deleteById(id);
+    }
+
+    public Producto modificarProducto(Long id, Producto producto) {
+        Optional<Producto> productoActual = productoRepository.findById(id);
+
+        if(productoActual.isPresent()) {
+             Producto productoTemporal = productoActual.get();
+
+            if (producto.getNombre() == null || producto.getPrecio() == 0)
+                throw new IllegalArgumentException("Todos los campos deben ser llenados correctamente.");
+
+            productoTemporal.setNombre(producto.getNombre());
+            productoTemporal.setPrecio(producto.getPrecio());
+            productoTemporal.setDisponibilidad(producto.getDisponibilidad());
+
+            return productoRepository.save(productoTemporal);
+        }
+        else throw new RecursoNoEncontradoException("El producto con ID " + id + " no existe.");
+    }
+}
+package com.tortilleria.app_tortilleria.service;
+
+import com.tortilleria.app_tortilleria.dto.UsuarioDTO;
+import com.tortilleria.app_tortilleria.exception.RecursoNoEncontradoException;
+import com.tortilleria.app_tortilleria.model.UserRole;
+import com.tortilleria.app_tortilleria.model.Usuario;
+import com.tortilleria.app_tortilleria.repository.UsuarioRepository;
+import com.tortilleria.app_tortilleria.security.JwtService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+@Service
+public class UsuarioService {
+
+    private final UsuarioRepository usuarioRepository;
+    private final CustomUserDetailsService userDetailsService;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+
+    public UsuarioService(UsuarioRepository usuarioRepository, CustomUserDetailsService userDetailsService, PasswordEncoder passwordEncoder, JwtService jwtService) {
+        this.usuarioRepository = usuarioRepository;
+        this.userDetailsService = userDetailsService;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
+    }
+
+    public UsuarioDTO registrarUsuario(Usuario usuario) {
+        if (usuario.getId() != null && usuarioRepository.existsById(usuario.getId())) {
+            throw new IllegalArgumentException("El usuario no debe tener un ID al registrarse.");
+        }
+        usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
+        usuarioRepository.save(usuario);
+        jwtService.generarToken(userDetailsService.loadUserByUsername(usuario.getEmail()));
+
+        return new UsuarioDTO(usuario);
+    }
+
+    public Page<UsuarioDTO> obtenerTodos(int page, int size) {
+        Page<Usuario> usuariosPage = usuarioRepository.findAll(PageRequest.of(page, size));
+
+        return usuariosPage.map(UsuarioDTO::new);
+    }
+
+    public UsuarioDTO usuarioPorId(Long id) {
+        Usuario usuarioExistente = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario con el ID " + id + " no existe."));
+
+        return new UsuarioDTO(usuarioExistente);
+    }
+
+    public Usuario usuarioPorEmail(String email) {
+
+        return usuarioRepository.findByEmail(email)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No hay un usuario registrado con el email: " + email));
+    }
+
+    public void eliminarUsuario(Long id) {
+        if (!usuarioRepository.existsById(id))
+            throw new RecursoNoEncontradoException("El usuario con el ID " + id + " no existe.");
+
+        usuarioRepository.deleteById(id);
+    }
+
+    public UsuarioDTO actualizarUsuario(Long id, Usuario usuarioRequest) {
+        Usuario usuarioActual = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario con el ID " + id + " no existe."));
+
+        if (usuarioRequest.getNombre() == null || usuarioRequest.getEmail() == null ||
+                usuarioRequest.getDireccion() == null || usuarioRequest.getTelefono() == null)
+            throw new IllegalArgumentException("Todos los campos deben ser llenados correctamente.");
+
+        usuarioActual.setNombre(usuarioRequest.getNombre());
+        usuarioActual.setEmail(usuarioRequest.getEmail());
+        usuarioActual.setDireccion(usuarioRequest.getDireccion());
+        usuarioActual.setTelefono(usuarioRequest.getTelefono());
+        usuarioRepository.save(usuarioActual);
+
+        return new UsuarioDTO(usuarioActual);
+    }
+
+    public Usuario actualizarRolUsuario(Long id, String role) {
+        Usuario usuarioExistente = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario con el ID " + id + " no existe."));
+
+        String roleLimpio = role.trim().toUpperCase();
+        try {
+            usuarioExistente.setRole(UserRole.valueOf(roleLimpio));
+            return usuarioRepository.save(usuarioExistente);
+
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Rol invalido. Valores permitidos: ROLE_CLIENTE, ROLE_REPARTIDOR," +
+                    " ROLE_GESTOR, ROLE_ADMIN");
+        }
+    }
+
+    public void actualizarPassword(Long id, String passwordActual, String nuevoPassword) {
+        Usuario usuarioExistente = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario con el ID " + id + " no existe."));
+
+        if (passwordEncoder.matches(passwordActual, usuarioExistente.getPassword())) {
+
+            usuarioExistente.setPassword(passwordEncoder.encode(nuevoPassword));
+            usuarioRepository.save(usuarioExistente);
+
+        } else throw new IllegalArgumentException("Contraseña actual incorrecta");
+    }
+}

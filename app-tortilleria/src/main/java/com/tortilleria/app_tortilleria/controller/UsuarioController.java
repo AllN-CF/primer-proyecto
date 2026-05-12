@@ -2,6 +2,7 @@ package com.tortilleria.app_tortilleria.controller;
 
 import com.tortilleria.app_tortilleria.dto.UsuarioDTO;
 import com.tortilleria.app_tortilleria.model.Usuario;
+import com.tortilleria.app_tortilleria.service.AuthenticationService;
 import com.tortilleria.app_tortilleria.service.UsuarioService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -15,10 +16,12 @@ import org.springframework.web.bind.annotation.*;
 public class UsuarioController {
 
     private final UsuarioService usuarioService;
+    private final AuthenticationService authenticationService;
 
-    public UsuarioController(UsuarioService usuarioService) {
+    public UsuarioController(UsuarioService usuarioService, AuthenticationService authenticationService) {
 
         this.usuarioService = usuarioService;
+        this.authenticationService = authenticationService;
     }
 
     @PostMapping("/registro")
@@ -26,6 +29,13 @@ public class UsuarioController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(usuarioService.registrarUsuario(usuario));
     }
+
+    /* @PostMapping("/autentificacion")
+    public ResponseEntity<AuthResponse> autenticar(@RequestBody AuthRequest request) {
+
+        authenticationService.autenticarUsuario(request);
+        return ResponseEntity.status(HttpStatus.OK).build();
+    } */
 
     @GetMapping("/todos")
     @PreAuthorize("hasRole('ADMIN')")
@@ -120,6 +130,54 @@ public class UsuarioController {
 
         public void setNuevoPassword(String nuevoPassword) {
             this.nuevoPassword = nuevoPassword;
+        }
+    }
+
+    public static class AuthRequest {
+        private String email;
+        private String password;
+
+        public AuthRequest() {
+        }
+
+        public AuthRequest(String email, String password) {
+            this.email = email;
+            this.password = password;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public void setEmail(String email) {
+            this.email = email;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+    }
+
+    public static class AuthResponse {
+        private String token;
+
+        public AuthResponse() {
+        }
+
+        public AuthResponse(String token) {
+            this.token = token;
+        }
+
+        public String getToken() {
+            return token;
+        }
+
+        public void setToken(String token) {
+            this.token = token;
         }
     }
 }

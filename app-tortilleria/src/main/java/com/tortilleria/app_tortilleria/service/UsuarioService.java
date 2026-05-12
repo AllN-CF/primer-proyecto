@@ -5,6 +5,7 @@ import com.tortilleria.app_tortilleria.exception.RecursoNoEncontradoException;
 import com.tortilleria.app_tortilleria.model.UserRole;
 import com.tortilleria.app_tortilleria.model.Usuario;
 import com.tortilleria.app_tortilleria.repository.UsuarioRepository;
+import com.tortilleria.app_tortilleria.security.JwtService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,11 +15,15 @@ import org.springframework.stereotype.Service;
 public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
+    private final CustomUserDetailsService userDetailsService;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
-    public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
+    public UsuarioService(UsuarioRepository usuarioRepository, CustomUserDetailsService userDetailsService, PasswordEncoder passwordEncoder, JwtService jwtService) {
         this.usuarioRepository = usuarioRepository;
+        this.userDetailsService = userDetailsService;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
 
     public UsuarioDTO registrarUsuario(Usuario usuario) {
@@ -26,8 +31,10 @@ public class UsuarioService {
             throw new IllegalArgumentException("El usuario no debe tener un ID al registrarse.");
         }
         usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
+        usuarioRepository.save(usuario);
+        String token = jwtService.generarToken(userDetailsService.loadUserByUsername(usuario.getEmail()));
 
-        return new UsuarioDTO(usuarioRepository.save(usuario));
+        return new UsuarioDTO(usuario, token);
     }
 
     public Page<UsuarioDTO> obtenerTodos(int page, int size) {

@@ -7,12 +7,21 @@ public class UsuarioDTO {
     private String email;
     private String direccion;
     private String telefono;
+    private String token;
 
     public UsuarioDTO(Usuario usuario) {
         this.nombre = usuario.getNombre();
         this.email = usuario.getEmail();
         this.direccion = usuario.getDireccion();
         this.telefono = usuario.getTelefono();
+    }
+
+    public UsuarioDTO(Usuario usuario, String token) {
+        this.nombre = usuario.getNombre();
+        this.email = usuario.getEmail();
+        this.direccion = usuario.getDireccion();
+        this.telefono = usuario.getTelefono();
+        this.token = token;
     }
 
     public String getNombre() {

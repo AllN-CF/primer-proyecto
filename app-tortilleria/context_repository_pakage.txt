@@ -1,0 +1,47 @@
+package com.tortilleria.app_tortilleria.repository;
+
+import com.tortilleria.app_tortilleria.model.PedidoDetalle;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface PedidoDetalleRepository extends JpaRepository<PedidoDetalle, Long> {
+}
+package com.tortilleria.app_tortilleria.repository;
+
+import com.tortilleria.app_tortilleria.model.EstadoPedido;
+import com.tortilleria.app_tortilleria.model.Pedido;
+import com.tortilleria.app_tortilleria.model.Usuario;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface PedidoRepository extends JpaRepository<Pedido, Long> {
+
+    Page<Pedido> findAllByUsuario(Usuario usuario, Pageable pageable);
+
+    Page<Pedido> findAllByEstado(EstadoPedido estado, Pageable pageable);
+}
+package com.tortilleria.app_tortilleria.repository;
+
+import com.tortilleria.app_tortilleria.model.Producto;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface ProductoRepository extends JpaRepository<Producto, Long> {
+}
+package com.tortilleria.app_tortilleria.repository;
+import com.tortilleria.app_tortilleria.model.Usuario;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
+
+    Optional<Usuario> findByEmail(String email);
+}
